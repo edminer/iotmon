@@ -6,7 +6,7 @@
 # Function: Python Utility functions
 #
 # Change History:
-#  edm  03/26/2016  first written
+#  em  03/26/2016  first written
 #
 ###########################################################################
 #
@@ -64,7 +64,7 @@ EXEPATH += os.sep
 #             loglevel = lowest level of message to log.
 #                 defaults to 'INFO'
 # Returns   : nothing
-# Assumes   :
+# Assumes   : G_option.debug is set
 #------------------------------------------------------------------------------
 def configureLogging(logdestination=sys.argv[0]+'.log',loglevel='INFO'):
    if G_options.debug == 1:
@@ -185,7 +185,7 @@ def freeLock():
 #------------------------------------------------------------------------------
 # Function  : yaml_load
 # Function  : Load yaml data from a file
-# Parms     : filename
+# Parms     : filepath - file path to yaml file
 # Returns   : data structure as per the yaml file
 # Assumes   :
 #------------------------------------------------------------------------------
@@ -266,12 +266,12 @@ if __name__ == "__main__":
 
    print("Starting...");
    print("Config items: %s" % str(G_config))
-#
-#   print("Sending a test email...")
-#   subject = 'This is a test email sent at %s!' % datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
-#   bodyText = "This is the body\nAnd more"
-#   emailTo = "edminernew@gmail.com"
-#   sendEmail(emailTo, subject, bodyText, "/etc/hosts")
+
+   print("Sending a test email...")
+   subject = 'This is a test email sent at %s!' % datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
+   bodyText = "This is the body\nAnd more"
+   emailTo = "edminernew@gmail.com"
+   sendEmail(emailTo, subject, bodyText, "/etc/hosts")
 
    print(EXENAME,EXEPATH,ping('google.com'))
    (returncode,out,err) = execCommand('ls -la')

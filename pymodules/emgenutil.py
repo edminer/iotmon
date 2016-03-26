@@ -6,7 +6,7 @@
 # Function: Python Utility functions
 #
 # Change History:
-#  edm  11/21/2013  first written
+#  edm  03/26/2016  first written
 #
 ###########################################################################
 #
@@ -195,16 +195,27 @@ def yaml_load(filepath):
    return data
 
 
-
-
-def sendEmail(emailTo, subject, bodyText, bodyHtml=None, binaryFilename=None):
+#------------------------------------------------------------------------------
+# Function  : sendEmail
+# Function  : Send an email with optional file attachment
+# Parms     : emailTo   email address of "to" person
+#             subject   Subject text
+#             bodyText  Body text (new lines are line breaks)
+#             bodyHtml        (optional) Body text in HTML markup
+#             binaryFilepath  (optional) filepath of attachment
+#             emailFrom       (optional) "from" email (defaults to donotreply@<hostname>
+# Returns   : data structure as per the yaml file
+# Assumes   :
+#------------------------------------------------------------------------------
+def sendEmail(emailTo, subject, bodyText, bodyHtml=None, binaryFilepath=None, emailFrom='default'):
 
    #---------------------------------------------------------------------------
    # Send an email with a file attachment
    #---------------------------------------------------------------------------
 
-   hostname   = os.uname().nodename
-   emailFrom  = 'donotreply@%s' % hostname
+   if emailFrom == 'default':
+      hostname   = os.uname().nodename
+      emailFrom  = 'donotreply@%s' % hostname
 
    # Create the enclosing (outer) message
    msg = MIMEMultipart()
@@ -216,10 +227,10 @@ def sendEmail(emailTo, subject, bodyText, bodyHtml=None, binaryFilename=None):
    if bodyHtml:
    		msg.attach(MIMEText(bodyHtml,'html'))
 
-   if binaryFilename:
+   if binaryFilepath:
       ctype = 'application/octet-stream'
       maintype, subtype = ctype.split('/', 1)
-      with open(binaryFilename,"rb") as INFILE:
+      with open(binaryFilepath,"rb") as INFILE:
          fileAttachment = MIMEBase(maintype, subtype)
          fileAttachment.set_payload(INFILE.read())
 
@@ -227,9 +238,9 @@ def sendEmail(emailTo, subject, bodyText, bodyHtml=None, binaryFilename=None):
       encoders.encode_base64(fileAttachment)
 
       # Set the filename parameter and attach file to outer message
-      fileAttachment.add_header('Content-Disposition', 'attachment', filename=binaryFilename)
+      fileAttachment.add_header('Content-Disposition', 'attachment', filename=binaryFilepath)
       msg.attach(fileAttachment)
-      msg.attach(MIMEText('This file is attached: %s' % binaryFilename))
+      msg.attach(MIMEText('This file is attached: %s' % binaryFilepath))
 
    # Now send the message
    mailServer = smtplib.SMTP('smtp.gmail.com:587')
@@ -251,17 +262,29 @@ G_config = yaml_load("emgenutil.yaml")
 
 if __name__ == "__main__":
 
+   import time
+
    print("Starting...");
    print("Config items: %s" % str(G_config))
-
-   print("Sending a test email...")
-   subject = 'This is a test email sent at %s!' % datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
-   bodyText = "This is the body\nAnd more"
-   emailTo = "edminernew@gmail.com"
-   sendEmail(emailTo, subject, bodyText, "/etc/hosts")
+#
+#   print("Sending a test email...")
+#   subject = 'This is a test email sent at %s!' % datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
+#   bodyText = "This is the body\nAnd more"
+#   emailTo = "edminernew@gmail.com"
+#   sendEmail(emailTo, subject, bodyText, "/etc/hosts")
 
    print(EXENAME,EXEPATH,ping('google.com'))
    (returncode,out,err) = execCommand('ls -la')
    print("returncode = %d. stdout = %s. stderr = %s." % (returncode,out,err))
+
+   try:
+      print("Getting lock...")
+      getLock("emgenutil")
+      print("sleeping with lock...")
+      time.sleep(5)
+      print("Freeing lock...")
+      freeLock()
+   except GeneralError as e:
+      print("getLock exception:", e)
    print("Done")
 

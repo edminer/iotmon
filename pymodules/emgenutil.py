@@ -102,7 +102,7 @@ def execCommand(cmd):
 # Function  : Reads Config file and establishes G_config dict with values.
 #             Config file is yaml syntax.
 # Parms     : none
-# Returns   : nothing
+# Returns   : data structure as per the yaml load
 # Assumes   : Config file is in the same dir as executable and named $EXENAME.yaml
 #
 # Example of what calling module can do with G_config
@@ -112,17 +112,17 @@ def execCommand(cmd):
 #  print(mylist)
 #
 #------------------------------------------------------------------------------
-def processConfigFile(configFile=sys.argv[0]+".ini"):
-
-   global G_config
+def processConfigFile(configFile=sys.argv[0]+".yaml"):
 
    if not os.path.isfile(configFile):
-      errorexit("config file "+configFile+" not found.",2);
+      exitWithErrorMessage("config file "+configFile+" not found.",2);
 
    config = yaml_load(configFile)
 
-   for key in G_config:
-      logger.info("G_config["+key+"]:"+G_config[key]+".")
+   for key in config:
+      logger.info("config["+key+"]:"+str(config[key])+".")
+
+   return config
 
 
 #------------------------------------------------------------------------------
@@ -148,7 +148,7 @@ def ping(nameOrIP,count=2):
    if "%d packets transmitted" % count in out:
       return True
 
-   errorexit("ERROR: unexpected results from ping.  %s" % out)
+   exitWithErrorMessage("ERROR: unexpected results from ping.  %s" % out)
 
 
 #------------------------------------------------------------------------------
@@ -249,6 +249,22 @@ def sendEmail(emailTo, subject, bodyText, bodyHtml=None, binaryFilepath=None, em
 
    mailServer.sendmail(emailFrom, emailTo, msg.as_string())
    mailServer.quit()
+
+
+#------------------------------------------------------------------------------
+# Subroutine: exitWithErrorMessage
+# Function  : Print an appropriate error response to stdout/stderr and then exit
+# Parms     : message - a text message
+#             errorCode - optional errorcode text, defaults
+# Returns   : Exits after printing results to STDERR
+# Assumes   :
+#------------------------------------------------------------------------------
+def exitWithErrorMessage(message, errorCode="400 Bad Request", exitcode=1):
+
+   logging.error("Error: "+message)
+   print("Error: "+message, file=sys.stderr)
+   exit(exitcode)
+
 
 #------------------------------------------------------------------------------
 # Initialize

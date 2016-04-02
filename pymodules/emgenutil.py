@@ -117,7 +117,7 @@ def processConfigFile(configFile=sys.argv[0]+".yaml"):
    if not os.path.isfile(configFile):
       exitWithErrorMessage("config file "+configFile+" not found.",2);
 
-   config = yaml_load(configFile)
+   config = loadYaml(configFile)
 
    for key in config:
       logger.info("config["+key+"]:"+str(config[key])+".")
@@ -183,13 +183,13 @@ def freeLock():
 
 
 #------------------------------------------------------------------------------
-# Function  : yaml_load
+# Function  : loadYaml
 # Function  : Load yaml data from a file
 # Parms     : filepath - file path to yaml file
 # Returns   : data structure as per the yaml file
 # Assumes   :
 #------------------------------------------------------------------------------
-def yaml_load(filepath):
+def loadYaml(filepath):
    with open(filepath, "r") as INFILE:
       data = yaml.load(INFILE)
    return data
@@ -270,7 +270,8 @@ def exitWithErrorMessage(message, errorCode="400 Bad Request", exitcode=1):
 # Initialize
 #------------------------------------------------------------------------------
 
-G_config = yaml_load("emgenutil.yaml")
+#G_config = loadYaml(EXEPATH+"emgenutil.yaml")
+G_config = loadYaml("%s%spymodules/emgenutil.yaml" % (os.getcwd(), os.sep))
 
 #------------------------------------------------------------------------------
 # main
@@ -286,7 +287,7 @@ if __name__ == "__main__":
    print("Sending a test email...")
    subject = 'This is a test email sent at %s!' % datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
    bodyText = "This is the body\nAnd more"
-   emailTo = "edminernew@gmail.com"
+   emailTo = "edminer@hotmail.com"
    sendEmail(emailTo, subject, bodyText, "/etc/hosts")
 
    print(EXENAME,EXEPATH,ping('google.com'))

@@ -4,7 +4,7 @@ import sys,os,logging,re,traceback
 sys.path.append("pymodules")
 #sys.path.append("/usr/local/bin/pymodules")
 from emgenutil import EXENAME,EXEPATH,GeneralError
-import emgenutil
+import emgenutil,time
 import sqlite3 as lite
 
 #------------------------------------------------------------------------------
@@ -60,8 +60,9 @@ def main():
    initialize()
 
    class State:
-      DOWN = "DOWN"
-      UP   = "UP"
+      DOWN    = "DOWN"
+      UP      = "UP"
+      UNKNOWN = "UNKNOWN"
 
    ##############################################################################
    #
@@ -71,7 +72,11 @@ def main():
 
    try:
 
-      db = lite.connect(':memory:')
+      #-----------------------------------------------------------------------------------
+      # Create database of  devices to be monitored and initialize to "UNKNOWN"
+      #-----------------------------------------------------------------------------------
+
+      db = lite.connect('%s%s.db' % (EXEPATH, EXENAME))
       # The default cursor returns the data in a tuple of tuples. When we use a dictionary cursor,
       # the data is sent in the form of Python dictionaries. This way we can refer to the data by their column names.
       db.row_factory = lite.Row
@@ -79,20 +84,51 @@ def main():
       with db:
 
          cursor = db.cursor()
+         cursor.execute("DROP TABLE IF EXISTS Devices")
          cursor.execute("CREATE TABLE Devices(IpAddr TEXT PRIMARY KEY, Descr TEXT, State TEXT)")
 
          for device in G_config["IoTDevices"]:
             print(device, G_config["IoTDevices"][device])
-            cursor.execute("INSERT INTO Devices VALUES ('%s', '%s','%s')" % (device, G_config['IoTDevices'][device], State.DOWN))
+            cursor.execute('INSERT INTO Devices VALUES ("%s", "%s","%s")' % (device, G_config['IoTDevices'][device], State.UNKNOWN))
 
          lid = cursor.lastrowid
          logger.info("The last Id of the inserted row is %d" % lid)
 
-         cursor.execute("SELECT * FROM Devices")
-         for row in cursor:
-            logger.info("Row Info: %(IpAddr)s, %(Descr)s, %(State)s" % row)
-
          logAllRowsInTable(cursor, "Devices")
+
+         #-----------------------------------------------------------------------------------
+         # Get into a monitor cycle
+         #-----------------------------------------------------------------------------------
+
+         updateCursor = db.cursor()
+         while 1:
+
+            logger.info("********** Starting a ping cycle *************")
+
+            cursor.execute("SELECT * FROM Devices")
+            for row in cursor:
+               logger.info("Row Info: %(IpAddr)s, %(Descr)s, %(State)s" % row)
+               # If device responds to ping...
+               if emgenutil.ping(row['IpAddr']):
+                  # if it was not UP prior to this, update the device state in the database and send out notification (if it was DOWN before)
+                  if row['State'] != State.UP:
+                     updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.UP, row['IpAddr']))
+                     if row['State'] == State.DOWN:
+                        logger.info("State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row)
+                        print("Send email now: State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row)
+                     else:
+                        # device is found to be up for the first time.  Just log that fact.  No notification.
+                        logger.info("State of %(IpAddr)s (%(Descr)s) has changed from UNKNOWN to UP" % row)
+               # if device did NOT respond to ping...
+               else:
+                  # if it was UP prior to this, update the device state in the databaes and send out notification (if it was UP before)
+                  if row['State'] == State.UP:
+                     logger.info("State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row)
+                     updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.DOWN, row['IpAddr']))
+                     print("Send email now: State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row)
+
+            logger.info("Sleeping for %d seconds..." % G_config["PingCycle"])
+            time.sleep(G_config["PingCycle"])
 
    except GeneralError as e:
       if emgenutil.G_options.debug:

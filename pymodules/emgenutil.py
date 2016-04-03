@@ -271,7 +271,7 @@ def exitWithErrorMessage(message, errorCode="400 Bad Request", exitcode=1):
 #------------------------------------------------------------------------------
 
 #G_config = loadYaml(EXEPATH+"emgenutil.yaml")
-G_config = loadYaml("%s%spymodules/emgenutil.yaml" % (os.getcwd(), os.sep))
+G_config = loadYaml("%spymodules/emgenutil.yaml" % (EXEPATH))
 
 #------------------------------------------------------------------------------
 # main

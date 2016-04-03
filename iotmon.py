@@ -1,9 +1,11 @@
 #!/usr/local/bin/python -u
 
 import sys,os,logging,re,traceback
-sys.path.append("pymodules")
-#sys.path.append("/usr/local/bin/pymodules")
-from emgenutil import EXENAME,EXEPATH,GeneralError
+(EXEPATH,EXENAME) = os.path.split(sys.argv[0])
+EXEPATH += os.sep
+
+sys.path.append("%spymodules" % EXEPATH)
+from emgenutil import GeneralError,sendEmail
 import emgenutil,time
 import sqlite3 as lite
 
@@ -12,6 +14,12 @@ import sqlite3 as lite
 #------------------------------------------------------------------------------
 
 logger=logging.getLogger(EXENAME)
+G_lastConfigModifyTime = None
+
+class State:
+   DOWN    = "DOWN"
+   UP      = "UP"
+   UNKNOWN = "UNKNOWN"
 
 #------------------------------------------------------------------------------
 # USAGE
@@ -57,12 +65,9 @@ def main():
    #
    ##############################################################################
 
+   global G_lastConfigModifyTime
+   global G_config
    initialize()
-
-   class State:
-      DOWN    = "DOWN"
-      UP      = "UP"
-      UNKNOWN = "UNKNOWN"
 
    ##############################################################################
    #
@@ -71,6 +76,9 @@ def main():
    ##############################################################################
 
    try:
+
+      # We only want 1 instance of this running.  So attempt to get the "lock".
+      emgenutil.getLock(EXENAME)
 
       #-----------------------------------------------------------------------------------
       # Create database of  devices to be monitored and initialize to "UNKNOWN"
@@ -83,25 +91,22 @@ def main():
 
       with db:
 
-         cursor = db.cursor()
-         cursor.execute("DROP TABLE IF EXISTS Devices")
-         cursor.execute("CREATE TABLE Devices(IpAddr TEXT PRIMARY KEY, Descr TEXT, State TEXT)")
-
-         for device in G_config["IoTDevices"]:
-            print(device, G_config["IoTDevices"][device])
-            cursor.execute('INSERT INTO Devices VALUES ("%s", "%s","%s")' % (device, G_config['IoTDevices'][device], State.UNKNOWN))
-
-         lid = cursor.lastrowid
-         logger.info("The last Id of the inserted row is %d" % lid)
-
-         logAllRowsInTable(cursor, "Devices")
-
          #-----------------------------------------------------------------------------------
          # Get into a monitor cycle
          #-----------------------------------------------------------------------------------
 
-         updateCursor = db.cursor()
          while 1:
+
+            # see if the config file was modified
+            currentConfigModifyTime = os.path.getmtime('%s%s.yaml' % (EXEPATH, EXENAME))
+            if currentConfigModifyTime != G_lastConfigModifyTime:
+               logger.info("Config modified.  Re-initing the database...")
+               # re-read the config data
+               G_config = emgenutil.processConfigFile()
+               # re-init the database
+               cursor = initDatabase(db)
+               updateCursor = db.cursor()
+               G_lastConfigModifyTime = currentConfigModifyTime
 
             logger.info("********** Starting a ping cycle *************")
 
@@ -114,8 +119,9 @@ def main():
                   if row['State'] != State.UP:
                      updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.UP, row['IpAddr']))
                      if row['State'] == State.DOWN:
-                        logger.info("State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row)
-                        print("Send email now: State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row)
+                        msg = "State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row
+                        logger.info("Sending email: %s" % msg)
+                        sendEmail(G_config["NotifyEmail"], msg, "Please investigate.")
                      else:
                         # device is found to be up for the first time.  Just log that fact.  No notification.
                         logger.info("State of %(IpAddr)s (%(Descr)s) has changed from UNKNOWN to UP" % row)
@@ -123,9 +129,10 @@ def main():
                else:
                   # if it was UP prior to this, update the device state in the databaes and send out notification (if it was UP before)
                   if row['State'] == State.UP:
-                     logger.info("State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row)
+                     msg = "State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row
+                     logger.info("Sending email: %s" % msg)
                      updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.DOWN, row['IpAddr']))
-                     print("Send email now: State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row)
+                     sendEmail(G_config["NotifyEmail"], msg, "Please investigate.")
 
             logger.info("Sleeping for %d seconds..." % G_config["PingCycle"])
             time.sleep(G_config["PingCycle"])
@@ -168,6 +175,23 @@ def logAllRowsInTable(cursor, tableName):
          msg += "%s=%s," % (key,row[key])
       logger.info(msg)
 
+
+def initDatabase(db):
+
+   with db:
+      cursor = db.cursor()
+      cursor.execute("DROP TABLE IF EXISTS Devices")
+      cursor.execute("CREATE TABLE Devices(IpAddr TEXT PRIMARY KEY, Descr TEXT, State TEXT)")
+
+      for device in G_config["IoTDevices"]:
+         print(device, G_config["IoTDevices"][device])
+         cursor.execute('INSERT INTO Devices VALUES ("%s", "%s","%s")' % (device, G_config['IoTDevices'][device], State.UNKNOWN))
+
+      lid = cursor.lastrowid
+      logger.info("The last Id of the inserted row is %d" % lid)
+
+      logAllRowsInTable(cursor, "Devices")
+      return cursor
 
 
 #------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ EXEPATH += os.sep
 
 sys.path.append("%spymodules" % EXEPATH)
 from emgenutil import GeneralError,sendEmail
-import emgenutil,time
+import emgenutil,time,datetime
 import sqlite3 as lite
 
 #------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ def main():
                if emgenutil.ping(row['IpAddr']):
                   # if it was not UP prior to this, update the device state in the database and send out notification (if it was DOWN before)
                   if row['State'] != State.UP:
-                     updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.UP, row['IpAddr']))
+                     updateCursor.execute("UPDATE Devices SET State = '%s', LastStateChange = '%s' WHERE IpAddr = '%s'" % (State.UP, str(datetime.datetime.today()), row['IpAddr']))
                      db.commit()
                      if row['State'] == State.DOWN:
                         msg = "State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row
@@ -132,7 +132,7 @@ def main():
                   if row['State'] == State.UP:
                      msg = "State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row
                      logger.info("Sending email: %s" % msg)
-                     updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.DOWN, row['IpAddr']))
+                     updateCursor.execute("UPDATE Devices SET State = '%s', LastStateChange = '%s' WHERE IpAddr = '%s'" % (State.DOWN, str(datetime.datetime.today()), row['IpAddr']))
                      db.commit()
                      sendEmail(G_config["NotifyEmail"], msg, "Please investigate.")
 
@@ -183,11 +183,11 @@ def initDatabase(db):
    with db:
       cursor = db.cursor()
       cursor.execute("DROP TABLE IF EXISTS Devices")
-      cursor.execute("CREATE TABLE Devices(IpAddr TEXT PRIMARY KEY, Descr TEXT, State TEXT)")
+      cursor.execute("CREATE TABLE Devices(IpAddr TEXT PRIMARY KEY, Descr TEXT, State TEXT, LastStateChange TEXT)")
 
       for device in G_config["IoTDevices"]:
          print(device, G_config["IoTDevices"][device])
-         cursor.execute('INSERT INTO Devices VALUES ("%s", "%s","%s")' % (device, G_config['IoTDevices'][device], State.UNKNOWN))
+         cursor.execute('INSERT INTO Devices VALUES ("%s", "%s", "%s", "%s")' % (device, G_config['IoTDevices'][device], State.UNKNOWN, str(datetime.datetime.today())))
 
       lid = cursor.lastrowid
       logger.info("The last Id of the inserted row is %d" % lid)

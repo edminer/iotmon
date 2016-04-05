@@ -118,6 +118,7 @@ def main():
                   # if it was not UP prior to this, update the device state in the database and send out notification (if it was DOWN before)
                   if row['State'] != State.UP:
                      updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.UP, row['IpAddr']))
+                     db.commit()
                      if row['State'] == State.DOWN:
                         msg = "State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row
                         logger.info("Sending email: %s" % msg)
@@ -132,6 +133,7 @@ def main():
                      msg = "State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row
                      logger.info("Sending email: %s" % msg)
                      updateCursor.execute("UPDATE Devices SET State = '%s' WHERE IpAddr = '%s'" % (State.DOWN, row['IpAddr']))
+                     db.commit()
                      sendEmail(G_config["NotifyEmail"], msg, "Please investigate.")
 
             logger.info("Sleeping for %d seconds..." % G_config["PingCycle"])
@@ -191,7 +193,7 @@ def initDatabase(db):
       logger.info("The last Id of the inserted row is %d" % lid)
 
       logAllRowsInTable(cursor, "Devices")
-      return cursor
+   return cursor
 
 
 #------------------------------------------------------------------------------

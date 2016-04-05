@@ -64,5 +64,5 @@ target/
 # Special files for this project
 emgenutil.yaml
 iotmon.py.yaml
-iotmon.py.db
+iotmon.py.db*
 pythonsamp.*

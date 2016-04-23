@@ -122,7 +122,7 @@ def main():
                      if row['State'] == State.DOWN:
                         msg = "State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row
                         logger.info("Sending email: %s" % msg)
-                        sendEmail(G_config["NotifyEmail"], msg, "Please investigate.")
+                        sendEmail(G_config["NotifyEmail"], msg, "UP now, just FYI.")
                      else:
                         # device is found to be up for the first time.  Just log that fact.  No notification.
                         logger.info("State of %(IpAddr)s (%(Descr)s) has changed from UNKNOWN to UP" % row)
@@ -134,7 +134,7 @@ def main():
                      logger.info("Sending email: %s" % msg)
                      updateCursor.execute("UPDATE Devices SET State = '%s', LastStateChange = '%s' WHERE IpAddr = '%s'" % (State.DOWN, str(datetime.datetime.today()), row['IpAddr']))
                      db.commit()
-                     sendEmail(G_config["NotifyEmail"], msg, "Please investigate.")
+                     sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
 
             logger.info("Sleeping for %d seconds..." % G_config["PingCycle"])
             time.sleep(G_config["PingCycle"])

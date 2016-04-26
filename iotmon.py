@@ -92,6 +92,10 @@ def main():
 
       with db:
 
+         cursor = db.cursor()
+
+         initLogTable(cursor)
+
          #-----------------------------------------------------------------------------------
          # Get into a monitor cycle
          #-----------------------------------------------------------------------------------
@@ -105,7 +109,7 @@ def main():
                # re-read the config data
                G_config = emgenutil.processConfigFile()
                # re-init the database
-               cursor = initDatabase(db)
+               initDevicesTable(cursor)
                G_lastConfigModifyTime = currentConfigModifyTime
 
             logger.info("********** Starting a ping cycle *************")
@@ -119,6 +123,7 @@ def main():
                   # if it was not UP prior to this, update the device state in the database and send out notification (if it was DOWN before)
                   if row['State'] != State.UP:
                      cursor.execute("UPDATE Devices SET State=?, LastStateChange=?, CurrentSuppressCount=? WHERE IpAddr=?", (State.UP, str(datetime.datetime.today()), row['suppressCount'], row['IpAddr']))
+                     writeLogRecord(cursor, row['IpAddr'], row['Descr'], row['State'], State.UP)
                      if row['State'] == State.DOWN:
                         msg = "State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row
                         logger.info("Sending email: %s" % msg)
@@ -130,16 +135,17 @@ def main():
                else:
                   # if it was UP prior to this, update the device state in the databaes and send out notification (if it was UP before)
                   if row['State'] == State.UP or row['State'] == State.PENDING:
-                     msg = "State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row
                      if row['CurrentSuppressCount'] == 0:
+                        msg = "State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row
                         logger.info("Sending email: %s" % msg)
                         cursor.execute("UPDATE Devices SET State =?, LastStateChange =? WHERE IpAddr =?", (State.DOWN, str(datetime.datetime.today()), row['IpAddr']))
-                        db.commit()
                         sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
+                        writeLogRecord(cursor, row['IpAddr'], row['Descr'], row['State'], State.DOWN)
                      else:
                         currentSuppressCount = row['CurrentSuppressCount'] - 1
                         logger.info("Decrementing CurrentSuppressCount for %s to %s" % (row['IpAddr'], currentSuppressCount))
                         cursor.execute("UPDATE Devices SET State =?, CurrentSuppressCount =? WHERE IpAddr =?", (State.PENDING, currentSuppressCount, row['IpAddr']))
+                        writeLogRecord(cursor, row['IpAddr'], row['Descr'], row['State'], State.PENDING)
             db.commit()
 
             logger.info("Sleeping for %d seconds..." % G_config["PingCycle"])
@@ -184,24 +190,29 @@ def logAllRowsInTable(cursor, tableName):
       logger.info(msg)
 
 
-def initDatabase(db):
+def initLogTable(cursor):
+   cursor.execute("CREATE TABLE IF NOT EXISTS Log (LogDate TEXT, IpAddr TEXT, Descr TEXT, PreviousState TEXT, CurrentState TEXT)")
 
-   with db:
-      cursor = db.cursor()
-      cursor.execute("DROP TABLE IF EXISTS Devices")
-      cursor.execute("CREATE TABLE Devices(IpAddr TEXT PRIMARY KEY, Descr TEXT, State TEXT, LastStateChange TEXT, SuppressCount INTEGER, CurrentSuppressCount INTEGER)")
 
-      for device in G_config["IoTDevices"]:
-         device['lastStateChange'] = str(datetime.datetime.today())
-         device['state'] = State.UNKNOWN
-         print(device)
-         cursor.execute('INSERT INTO Devices VALUES (:ipAddr, :description, :state, :lastStateChange, :suppressCount, :suppressCount)', device)
+def writeLogRecord(cursor, ipAddr, descr, previousState, currentState):
+   cursor.execute('INSERT INTO Log VALUES (?,?,?,?,?)', (str(datetime.datetime.today()), ipAddr, descr, previousState, currentState))
 
-      lid = cursor.lastrowid
-      logger.info("The last Id of the inserted row is %d" % lid)
 
-      logAllRowsInTable(cursor, "Devices")
-   return cursor
+def initDevicesTable(cursor):
+
+   cursor.execute("DROP TABLE IF EXISTS Devices")
+   cursor.execute("CREATE TABLE Devices(IpAddr TEXT PRIMARY KEY, Descr TEXT, State TEXT, LastStateChange TEXT, SuppressCount INTEGER, CurrentSuppressCount INTEGER)")
+
+   for device in G_config["IoTDevices"]:
+      device['lastStateChange'] = str(datetime.datetime.today())
+      device['state'] = State.UNKNOWN
+      print(device)
+      cursor.execute('INSERT INTO Devices VALUES (:ipAddr, :description, :state, :lastStateChange, :suppressCount, :suppressCount)', device)
+
+   lid = cursor.lastrowid
+   logger.info("The last Id of the inserted row is %d" % lid)
+
+   logAllRowsInTable(cursor, "Devices")
 
 
 #------------------------------------------------------------------------------

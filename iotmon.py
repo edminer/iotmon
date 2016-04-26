@@ -17,8 +17,9 @@ logger=logging.getLogger(EXENAME)
 G_lastConfigModifyTime = None
 
 class State:
-   DOWN    = "DOWN"
    UP      = "UP"
+   PENDING = "PENDING"
+   DOWN    = "DOWN"
    UNKNOWN = "UNKNOWN"
 
 #------------------------------------------------------------------------------
@@ -105,20 +106,19 @@ def main():
                G_config = emgenutil.processConfigFile()
                # re-init the database
                cursor = initDatabase(db)
-               updateCursor = db.cursor()
                G_lastConfigModifyTime = currentConfigModifyTime
 
             logger.info("********** Starting a ping cycle *************")
 
             cursor.execute("SELECT * FROM Devices")
-            for row in cursor:
-               logger.info("Row Info: %(IpAddr)s, %(Descr)s, %(State)s" % row)
+            rows = cursor.fetchall()
+            for row in rows:
+               logger.info("Device Info: %(IpAddr)s, %(Descr)s, %(State)s, %(LastStateChange)s, %(SuppressCount)d, %(CurrentSuppressCount)d" % row)
                # If device responds to ping...
                if emgenutil.ping(row['IpAddr']):
                   # if it was not UP prior to this, update the device state in the database and send out notification (if it was DOWN before)
                   if row['State'] != State.UP:
-                     updateCursor.execute("UPDATE Devices SET State=?, LastStateChange=?, CurrentSuppressCount=? WHERE IpAddr=?", (State.UP, str(datetime.datetime.today()), row['suppressCount'], row['IpAddr']))
-                     db.commit()
+                     cursor.execute("UPDATE Devices SET State=?, LastStateChange=?, CurrentSuppressCount=? WHERE IpAddr=?", (State.UP, str(datetime.datetime.today()), row['suppressCount'], row['IpAddr']))
                      if row['State'] == State.DOWN:
                         msg = "State of %(IpAddr)s (%(Descr)s) has changed from DOWN to UP" % row
                         logger.info("Sending email: %s" % msg)
@@ -129,12 +129,18 @@ def main():
                # if device did NOT respond to ping...
                else:
                   # if it was UP prior to this, update the device state in the databaes and send out notification (if it was UP before)
-                  if row['State'] == State.UP:
+                  if row['State'] == State.UP or row['State'] == State.PENDING:
                      msg = "State of %(IpAddr)s (%(Descr)s) has changed from UP to DOWN" % row
-                     logger.info("Sending email: %s" % msg)
-                     updateCursor.execute("UPDATE Devices SET State =?, LastStateChange =? WHERE IpAddr =?", (State.DOWN, str(datetime.datetime.today()), row['IpAddr']))
-                     db.commit()
-                     sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
+                     if row['CurrentSuppressCount'] == 0:
+                        logger.info("Sending email: %s" % msg)
+                        cursor.execute("UPDATE Devices SET State =?, LastStateChange =? WHERE IpAddr =?", (State.DOWN, str(datetime.datetime.today()), row['IpAddr']))
+                        db.commit()
+                        sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
+                     else:
+                        currentSuppressCount = row['CurrentSuppressCount'] - 1
+                        logger.info("Decrementing CurrentSuppressCount for %s to %s" % (row['IpAddr'], currentSuppressCount))
+                        cursor.execute("UPDATE Devices SET State =?, CurrentSuppressCount =? WHERE IpAddr =?", (State.PENDING, currentSuppressCount, row['IpAddr']))
+            db.commit()
 
             logger.info("Sleeping for %d seconds..." % G_config["PingCycle"])
             time.sleep(G_config["PingCycle"])

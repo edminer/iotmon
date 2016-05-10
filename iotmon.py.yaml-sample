@@ -1,0 +1,10 @@
+DefaultSuppressCount: 1
+IoTDevices:
+-   ipAddr: 192.168.1.10
+    description: NEST
+    suppressCount: 2
+-   ipAddr: 192.168.1.12
+    description: Lighting Controller
+PingCycle: 300.0
+NotifyEmail: myemailaddr@gmail.com
+LogPurgeTimeframe: 30  # in days

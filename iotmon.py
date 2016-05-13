@@ -142,9 +142,12 @@ def main():
                else:
                   # if it was UP/PENDING prior to this, update the device state in the databaes and send out notification
                   # that device is DOWN if the CurrentSuppressCount is down to 0
-                  if row['State'] == State.UP or row['State'] == State.PENDING:
+                  if row['State'] == State.UP or row['State'] == State.PENDING or row['State'] == State.UNKNOWN:
                      if row['CurrentSuppressCount'] == 0:
-                        msg = "State of %(Descr)s (%(IPAddr)s) has changed from UP to DOWN" % row
+                        if row['State'] == State.UP or row['State'] == State.PENDING:
+                           msg = "State of %(Descr)s (%(IPAddr)s) has changed from UP to DOWN" % row
+                        else:
+                           msg = "State of %(Descr)s (%(IPAddr)s) has changed from UNKNOWN to DOWN" % row
                         logger.info("Sending email: %s" % msg)
                         cursor.execute("UPDATE Devices SET State =?, LastStateChange =? WHERE IPAddr =?", (State.DOWN, str(datetime.datetime.today()), row['IPAddr']))
                         sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
@@ -220,7 +223,7 @@ def initDevicesTable(cursor):
       device['state'] = State.UNKNOWN
       device['SuppressCount'] = device.get("SuppressCount",G_config["DefaultSuppressCount"])
       print(device)
-      cursor.execute('INSERT INTO Devices VALUES (:IPAddr, :Description, :state, :LastStateChange, :SuppressCount, :SuppressCount)', device)
+      cursor.execute('INSERT INTO Devices VALUES (:IPAddr, :Description, :state, :LastStateChange, :SuppressCount, 0)', device)
 
    lid = cursor.lastrowid
    logger.info("The last Id of the inserted row is %d" % lid)

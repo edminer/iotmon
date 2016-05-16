@@ -32,7 +32,15 @@ def usage():
 
  $EXENAME
 
- Function: Whatever
+ Function: Monitors the availability of Internet of Things devices on a home network.
+           As devices drop off and subsequently return to the network, that activity is logged
+           in a sqlite database log table and a specified user will be sent an email 
+           message about the changes in device state.
+           
+ Note    : The sqlite db name is $EXENAME.db   
+           The database has 2 tables: Devices and Log
+           
+           The ini file name is $EXENAME.yaml.  See that file for info on supported parms.
 
  Syntax  : $EXENAME {--debug #}
 
@@ -44,7 +52,7 @@ def usage():
  Examples: $EXENAME
 
  Change History:
-  em  XX/XX/2016  first written
+  em  03/01/2016  first written
 .
 """
    template = Template(usagetext)
@@ -121,11 +129,12 @@ def main():
 
             logger.info("********** Starting a ping cycle *************")
 
+						# Iterate thru the Devices table, pinging each device in the table to verify that it is still on the network
             cursor.execute("SELECT * FROM Devices")
             rows = cursor.fetchall()
             for row in rows:
                logger.info("Device Info: %(IPAddr)s, %(Descr)s, %(State)s, %(LastStateChange)s, %(SuppressCount)d, %(CurrentSuppressCount)d" % row)
-               # If device responds to ping...
+               # Ping the device, and if device responds to ping...
                if emgenutil.ping(row['IPAddr']):
                   # if it was not UP prior to this, update the device state in the database and send out notification (if it was DOWN before)
                   if row['State'] != State.UP:
@@ -136,12 +145,12 @@ def main():
                         logger.info("Sending email: %s" % msg)
                         sendEmail(G_config["NotifyEmail"], msg, "UP now, just FYI.")
                      else:
-                        # device is found to be up for the first time.  Just log that fact.  No notification.
-                        logger.info("State of %(IPAddr)s (%(Descr)s) has changed from UNKNOWN/PENDING to UP" % row)
+                        # device is found to be up for the first time or the CurrentSuppressCount had not gone to zero.  Just log that fact.  No notification.
+                        logger.info("State of %(IPAddr)s (%(Descr)s) has changed from %(State)s to UP" % row)
                # if device did NOT respond to ping...
                else:
-                  # if it was UP/PENDING prior to this, update the device state in the databaes and send out notification
-                  # that device is DOWN if the CurrentSuppressCount is down to 0
+                  # if it was UP/PENDING prior to this, update the device state in the databaes and potentially send out a
+                  # notification that device is DOWN if the CurrentSuppressCount is down to 0
                   if row['State'] == State.UP or row['State'] == State.PENDING or row['State'] == State.UNKNOWN:
                      if row['CurrentSuppressCount'] == 0:
                         if row['State'] == State.UP or row['State'] == State.PENDING:
@@ -192,6 +201,14 @@ def main():
 
    exit()
 
+
+#------------------------------------------------------------------------------
+# Subroutine: logAllRowsInTable
+# Function  : dumps a given table to the debug log
+# Parms     : db cursor, table name
+# Returns   : nothing
+# Assumes   : 
+#------------------------------------------------------------------------------
 # https://docs.python.org/3.3/library/sqlite3.html#sqlite3.Row
 def logAllRowsInTable(cursor, tableName):
    cursor.execute("SELECT * FROM %s" % tableName)
@@ -202,9 +219,23 @@ def logAllRowsInTable(cursor, tableName):
       logger.info(msg)
 
 
+#------------------------------------------------------------------------------
+# Subroutine: initLogTable, writeLogRecord, purgeLogRecords
+# Function  : These 3 routines are related to the Log table in the database.
+#             Each row in the Log table describes a state transition for a 
+#             monitored device.
+#             The initLogTable routine initialize the Log table
+#             The writeLogRecord routine writes a new record to the Log table
+#             The purgeLogRecords routine deletes log table rows that need to
+#             be aged out of the Log table (as per the LogPurgeTimeframe 
+#             parm in the yaml ini file.
+# Parms     : initLogTable & purgeLogRecords: db cursor
+#						: writeLogRecord: cursor, IPAddr, descr, previousState, currentState
+# Returns   : nothing
+# Assumes   : 
+#------------------------------------------------------------------------------
 def initLogTable(cursor):
    cursor.execute("CREATE TABLE IF NOT EXISTS Log (LogDate TEXT, IPAddr TEXT, Descr TEXT, PreviousState TEXT, CurrentState TEXT)")
-
 
 def writeLogRecord(cursor, IPAddr, descr, previousState, currentState):
    cursor.execute('INSERT INTO Log VALUES (?,?,?,?,?)', (str(datetime.datetime.today()), IPAddr, descr, previousState, currentState))
@@ -213,6 +244,14 @@ def purgeLogRecords(cursor):
    cursor.execute("DELETE FROM Log WHERE LogDate < ?", (str(datetime.date.today() - datetime.timedelta(days=G_config["LogPurgeTimeframe"])),))
 
 
+#------------------------------------------------------------------------------
+# Subroutine: initDevicesTable
+# Function  : performs initialization of the Devices table from IoTDevices info 
+#             in the yaml ini file
+# Parms     : db cursor
+# Returns   : nothing
+# Assumes   : 
+#------------------------------------------------------------------------------
 def initDevicesTable(cursor):
 
    cursor.execute("DROP TABLE IF EXISTS Devices")

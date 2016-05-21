@@ -5,8 +5,8 @@ import sys,os,logging,re,traceback
 EXEPATH += os.sep
 
 sys.path.append("%spymodules" % EXEPATH)
-from emgenutil import GeneralError,sendEmail
-import emgenutil,time,datetime
+from genutil import GeneralError,sendEmail
+import genutil,time,datetime
 import sqlite3 as lite
 
 #------------------------------------------------------------------------------
@@ -88,7 +88,7 @@ def main():
    try:
 
       # We only want 1 instance of this running.  So attempt to get the "lock".
-      emgenutil.getLock(EXENAME)
+      genutil.getLock(EXENAME)
 
       #-----------------------------------------------------------------------------------
       # Create database of  devices to be monitored and initialize to "UNKNOWN"
@@ -116,7 +116,7 @@ def main():
             if currentConfigModifyTime != G_lastConfigModifyTime:
                logger.info("Config modified.  Re-initing the database...")
                # re-read the config data
-               G_config = emgenutil.processConfigFile()
+               G_config = genutil.processConfigFile()
                # re-init the database
                initDevicesTable(cursor)
                G_lastConfigModifyTime = currentConfigModifyTime
@@ -135,7 +135,7 @@ def main():
             for row in rows:
                logger.info("Device Info: %(IPAddr)s, %(Descr)s, %(State)s, %(LastStateChange)s, %(SuppressCount)d, %(CurrentSuppressCount)d" % row)
                # Ping the device, and if device responds to ping...
-               if emgenutil.ping(row['IPAddr']):
+               if genutil.ping(row['IPAddr']):
                   # if it was not UP prior to this, update the device state in the database and send out notification (if it was DOWN before)
                   if row['State'] != State.UP:
                      cursor.execute("UPDATE Devices SET State=?, LastStateChange=?, CurrentSuppressCount=? WHERE IPAddr=?", (State.UP, str(datetime.datetime.today()), row['SuppressCount'], row['IPAddr']))
@@ -173,22 +173,22 @@ def main():
             time.sleep(G_config["PingCycle"])
 
    except GeneralError as e:
-      if emgenutil.G_options.debug:
+      if genutil.G_options.debug:
          # Fuller display of the Exception type and where the exception occured in the code
          (eType, eValue, eTraceback) = sys.exc_info()
          tbprintable = ''.join(traceback.format_tb(eTraceback))
-         emgenutil.exitWithErrorMessage("%s Exception: %s\n%s" % (eType.__name__, eValue, tbprintable), errorCode=e.errorCode)
+         genutil.exitWithErrorMessage("%s Exception: %s\n%s" % (eType.__name__, eValue, tbprintable), errorCode=e.errorCode)
       else:
-         emgenutil.exitWithErrorMessage(e.message, errorCode=e.errorCode)
+         genutil.exitWithErrorMessage(e.message, errorCode=e.errorCode)
 
    except Exception as e:
-      if emgenutil.G_options.debug:
+      if genutil.G_options.debug:
          # Fuller display of the Exception type and where the exception occured in the code
          (eType, eValue, eTraceback) = sys.exc_info()
          tbprintable = ''.join(traceback.format_tb(eTraceback))
-         emgenutil.exitWithErrorMessage("%s Exception: %s\n%s" % (eType.__name__, eValue, tbprintable))
+         genutil.exitWithErrorMessage("%s Exception: %s\n%s" % (eType.__name__, eValue, tbprintable))
       else:
-         emgenutil.exitWithErrorMessage(str(e))
+         genutil.exitWithErrorMessage(str(e))
 
    ##############################################################################
    #
@@ -286,18 +286,18 @@ def initialize():
    parser = argparse.ArgumentParser(usage=usage())
    parser.add_argument('--debug', dest="debug", type=int, help='0=no debug, 1=STDERR, 2=log file')
 
-   emgenutil.G_options = parser.parse_args()
+   genutil.G_options = parser.parse_args()
 
-   if emgenutil.G_options.debug == None or emgenutil.G_options.debug == 0:
+   if genutil.G_options.debug == None or genutil.G_options.debug == 0:
       logging.disable(logging.CRITICAL)  # effectively disable all logging
    else:
-      if emgenutil.G_options.debug == 9:
-         emgenutil.configureLogging(loglevel='DEBUG')
+      if genutil.G_options.debug == 9:
+         genutil.configureLogging(loglevel='DEBUG')
       else:
-         emgenutil.configureLogging()
+         genutil.configureLogging()
 
    global G_config
-   G_config = emgenutil.processConfigFile()
+   G_config = genutil.processConfigFile()
 
    logger.info(EXENAME+" starting:"+__name__+" with these args:"+str(sys.argv))
 

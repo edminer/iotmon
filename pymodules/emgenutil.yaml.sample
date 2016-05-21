@@ -1,4 +1,0 @@
-# This is the config file for emgenutil.py tools
-sendEmail:
-   gmailUsername: janedoeiot@gmail.com
-   gmailPassword: DoeBuckle#99

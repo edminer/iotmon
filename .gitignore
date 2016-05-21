@@ -62,7 +62,6 @@ target/
 .ipynb_checkpoints
 
 # Special files for this project
-emgenutil.yaml
 iotmon.py.yaml
 iotmon.py.db*
-pythonsamp.*
+pymodules

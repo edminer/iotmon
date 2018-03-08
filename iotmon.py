@@ -5,7 +5,7 @@ import sys,os,logging,re,traceback
 EXEPATH += os.sep
 
 sys.path.append("%spymodules" % EXEPATH)
-from genutil import GeneralError,sendEmail
+from genutil import GeneralError,sendEmail,sendTwitterDirectMessage,sendPushoverMessage
 import genutil,time,datetime
 import sqlite3 as lite
 
@@ -53,6 +53,7 @@ def usage():
 
  Change History:
   em  03/01/2016  first written
+  em  03/07/2018  added NotifyPushover support
 .
 """
    template = Template(usagetext)
@@ -143,7 +144,9 @@ def main():
                      if row['State'] == State.DOWN:
                         msg = "State of %(Descr)s (%(IPAddr)s) has changed from DOWN to UP" % row
                         logger.info("Sending email: %s" % msg)
-                        sendEmail(G_config["NotifyEmail"], msg, "UP now, just FYI.")
+                        if "NotifyEmail"    in G_config: sendEmail(G_config["NotifyEmail"], msg, "UP now, just FYI.")
+                        if "NotifyTwitter"  in G_config: sendTwitterDirectMessage(G_config["NotifyTwitter"], msg)
+                        if "NotifyPushover" in G_config: sendPushoverMessage(G_config["NotifyPushover"], msg)
                      else:
                         # device is found to be up for the first time or the CurrentSuppressCount had not gone to zero.  Just log that fact.  No notification.
                         logger.info("State of %(IPAddr)s (%(Descr)s) has changed from %(State)s to UP" % row)
@@ -159,7 +162,9 @@ def main():
                            msg = "State of %(Descr)s (%(IPAddr)s) has changed from UNKNOWN to DOWN" % row
                         logger.info("Sending email: %s" % msg)
                         cursor.execute("UPDATE Devices SET State =?, LastStateChange =? WHERE IPAddr =?", (State.DOWN, str(datetime.datetime.today()), row['IPAddr']))
-                        sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
+                        if "NotifyEmail"    in G_config: sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
+                        if "NotifyTwitter"  in G_config: sendTwitterDirectMessage(G_config["NotifyTwitter"], msg)
+                        if "NotifyPushover" in G_config: sendPushoverMessage(G_config["NotifyPushover"], msg)
                         writeLogRecord(cursor, row['IPAddr'], row['Descr'], row['State'], State.DOWN)
                      else:
                         currentSuppressCount = row['CurrentSuppressCount'] - 1

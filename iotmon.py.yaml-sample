@@ -7,4 +7,7 @@ IoTDevices:
     description: Lighting Controller
 PingCycle: 300.0
 NotifyEmail: myemailaddr@gmail.com
+NotifyTwitter: doe_john
+NotifyPushover: jdoe
+IotmonUiUrl: http://192.168.1.2:8080/iotmon/
 LogPurgeTimeframe: 30  # in days

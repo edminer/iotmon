@@ -54,6 +54,7 @@ def usage():
  Change History:
   em  03/01/2016  first written
   em  03/07/2018  added NotifyPushover support
+  em  03/17/2018  added IotmonUiUrl support
 .
 """
    template = Template(usagetext)
@@ -157,9 +158,10 @@ def main():
                   if row['State'] == State.UP or row['State'] == State.PENDING or row['State'] == State.UNKNOWN:
                      if row['CurrentSuppressCount'] == 0:
                         if row['State'] == State.UP or row['State'] == State.PENDING:
-                           msg = "State of %(Descr)s (%(IPAddr)s) has changed from UP to DOWN" % row
+                           msg = "State of %(Descr)s (%(IPAddr)s) has changed from UP to DOWN.  " % row
                         else:
-                           msg = "State of %(Descr)s (%(IPAddr)s) has changed from UNKNOWN to DOWN" % row
+                           msg = "State of %(Descr)s (%(IPAddr)s) has changed from UNKNOWN to DOWN.  " % row
+                        msg += G_config["IotmonUiUrl"]
                         logger.info("Sending email: %s" % msg)
                         cursor.execute("UPDATE Devices SET State =?, LastStateChange =? WHERE IPAddr =?", (State.DOWN, str(datetime.datetime.today()), row['IPAddr']))
                         if "NotifyEmail"    in G_config: sendEmail(G_config["NotifyEmail"], msg, "DOWN!  Please investigate.")
